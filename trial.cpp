@@ -32,31 +32,138 @@ static void search_for_links(GumboNode *node, std::vector<std::string> *req_link
     search_for_links(static_cast<GumboNode *>(children->data[i]), req_links);
 }
 
+void curl_data(std::string url, std::string *readBuffer)
+{
+  CURL *curl = curl_easy_init();
+  CURLcode res;
+
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, readBuffer);
+
+  res = curl_easy_perform(curl);
+  curl_easy_cleanup(curl);
+}
+
+void parse_links(std::string readBuffer, std::vector<std::string> *req_links)
+{
+  GumboOutput *output = gumbo_parse(readBuffer.c_str());
+  search_for_links(output->root, req_links);
+  gumbo_destroy_output(&kGumboDefaultOptions, output);
+}
+
+void get_first_five_para(GumboNode *node, std::string *text)
+{
+  /*
+  if (node->type = GUMBO_NODE_TEXT)
+  {
+    std::string s = node->v.text.text;
+    if (!s.empty())
+      std::cout << s;
+  }
+  */
+  if (node->v.element.tag == GUMBO_TAG_B)
+  {
+    std::cout << node->v.text.text;
+  }
+  else if (node->type == GUMBO_NODE_ELEMENT)
+  {
+    GumboVector *children = &node->v.element.children;
+    //std::cout << "Not the element you were looking for\n";
+    for (unsigned i = 0; i < children->length; i++)
+      get_first_five_para(static_cast<GumboNode *>(children->data[i]), text);
+  }
+  else
+  {
+    return;
+  }
+  /*
+  GumboText *data;
+
+  GumboVector *children = &node->v.element.children;
+  //std::cout << "Not the element you were looking for\n";
+  for (unsigned i = 0; i < children->length; i++)
+    get_first_five_para(static_cast<GumboNode *>(children->data[i]), text);
+    */
+}
+
+static std::string cleantext(GumboNode *node)
+{
+  if (node->type == GUMBO_NODE_TEXT)
+  {
+    return std::string(node->v.text.text);
+  }
+  else if (node->type == GUMBO_NODE_ELEMENT &&
+           node->v.element.tag != GUMBO_TAG_SCRIPT &&
+           node->v.element.tag != GUMBO_TAG_STYLE && node->v.element.tag != GUMBO_TAG_TABLE && node->v.element.attributes.)
+  {
+    std::string contents = "";
+    GumboVector *children = &node->v.element.children;
+    for (unsigned int i = 0; i < children->length; ++i)
+    {
+      const std::string text = cleantext((GumboNode *)children->data[i]);
+      if (i != 0 && !text.empty())
+      {
+        contents.append(" ");
+      }
+      contents.append(text);
+    }
+    if (contents.length() > 180)
+      std::cout << contents << std::endl
+                << std::endl;
+    return contents;
+  }
+  else
+  {
+    return "";
+  }
+}
+
+void get_text(std::string readBuffer, std::string *text)
+{
+  GumboOutput *output = gumbo_parse(readBuffer.c_str());
+  get_first_five_para(output->document, text);
+  gumbo_destroy_output(&kGumboDefaultOptions, output);
+}
+
 int main()
 {
 
   // go to wikipedia main page and get html
-  CURL *curl = curl_easy_init();
   std::string main_url = "https://en.wikipedia.org/wiki/Main_Page";
-  CURLcode res;
   std::string readBuffer;
 
-  std::cout << "Hello World\n";
-
-  curl_easy_setopt(curl, CURLOPT_URL, main_url.c_str());
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-  res = curl_easy_perform(curl);
-  curl_easy_cleanup(curl);
+  curl_data(main_url, &readBuffer);
 
   // parse data using html-parser library gumbo-parser
+  // get links for required articles
   std::vector<std::string> req_links;
-  GumboOutput *output = gumbo_parse(readBuffer.c_str());
-  search_for_links(output->root, &req_links);
 
-  std::cout << "Value in req_links are :\n";
-  for (std::string s : req_links)
-    std::cout << s << std::endl;
+  parse_links(readBuffer, &req_links);
 
+  // for each article, get the first five paragraphs
+  // temp url
+  std::string tempbuffer;
+  std::string temptext;
+  std::string temp_url = "https://en.wikipedia.org/wiki/High_Explosive_Research";
+  curl_data(temp_url, &tempbuffer);
+  // get_text(tempbuffer, &temptext);
+
+  GumboOutput *output = gumbo_parse(tempbuffer.c_str());
+  std::string op = cleantext(output->root);
   gumbo_destroy_output(&kGumboDefaultOptions, output);
+  // std::cout << op << std::endl;
+
+  /*
+  for (std::string article_url : req_links)
+  {
+    std::string articleBuffer;
+    std::string text;
+    curl_data(article_url, &articleBuffer);
+    get_text(articleBuffer, &text);
+  }
+  */
+
+  // check if lenght is greater than something
+  // add in database
 }
