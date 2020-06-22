@@ -23,7 +23,8 @@ static void search_for_links(GumboNode *node, std::vector<std::string> *req_link
     // get all wiki links
     std::string pre = "https://en.wikipedia.org";
     std::string ff = temp.substr(0, 5);
-    if (!ff.compare("/wiki"))
+
+    if (!ff.compare("/wiki") && temp.find(':') == std::string::npos && temp.find("List") == std::string::npos && temp.find("Deaths") == std::string::npos)
       req_links->push_back(pre + temp);
   }
 
@@ -70,7 +71,7 @@ std::string cleantext(GumboNode *node, std::string *textBuffer)
       const std::string text = cleantext((GumboNode *)children->data[i], textBuffer);
       if (i != 0 && !text.empty())
       {
-        contents.append("");
+        contents.append(" ");
       }
       contents.append(text);
     }
@@ -89,11 +90,41 @@ void get_text(std::string readBuffer, std::vector<std::string> *all_para, std::s
 {
   GumboOutput *output = gumbo_parse(readBuffer.c_str());
   std::string text;
+  // get the cleaned text
   text = cleantext(output->root, textBuffer);
+
+  // get the first para as where the first newline is encountered
   unsigned cut_pos = textBuffer->find('\n');
   std::string req_text = textBuffer->substr(0, cut_pos);
-  std::cout << req_text << "\n";
-  all_para->push_back(req_text);
+  // remove all references found in para
+  std::string editedtext;
+  bool brfound = false;
+  for (char s : req_text)
+  {
+    if (s == '[')
+      brfound = true;
+    if (brfound)
+    {
+      if (s == ']')
+        brfound = false;
+    }
+    else
+      editedtext += s;
+  }
+  // check if somehow the para have lots of links
+  bool valid = true;
+  for (char s : editedtext)
+  {
+
+    if (!std::isalnum(s))
+      if (!(s == ' ' || s == ',' || s == '.' || s == '(' || s == ')' || s == '-' || s == '_' || s == '&' || s == '\'' || s == '\"'))
+      {
+        valid = false;
+        break;
+      }
+  }
+  if (valid)
+    all_para->push_back(editedtext);
   gumbo_destroy_output(&kGumboDefaultOptions, output);
 }
 
@@ -112,18 +143,17 @@ int main()
 
   parse_links(readBuffer, &req_links);
 
-  std::vector<std::string> all_para;
+  for (std::string s : req_links)
+    std::cout << s << std::endl;
 
+  std::vector<std::string> all_para;
   // get all para's
-  for (int i = 20; i < req_links.size(); i++)
+  for (int i = 5; i < req_links.size() - 5; i++)
   {
-    if (i == 30)
-      break;
     std::string article_url = req_links[i];
     std::string articleBuffer;
     std::string text;
     curl_data(article_url, &articleBuffer);
-    // to do remove [] from paras
     get_text(articleBuffer, &all_para, &text);
   }
 
