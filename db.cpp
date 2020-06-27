@@ -8,16 +8,19 @@
 int main(int, char **)
 {
   mongocxx::instance inst{};
-  mongocxx::client conn{mongocxx::uri{}};
+  mongocxx::uri uri(mongouri);
+  mongocxx::client client(uri);
+  // mongocxx::client conn{mongocxx::uri{}};
 
   bsoncxx::builder::stream::document document{};
 
-  auto collection = conn["testdb"]["testcollection"];
+  mongocxx::database db = client["webscraper"];
+  mongocxx::collection coll = db["paras"];
   document << "hello"
-           << "world";
+           << "suprabhat";
 
-  collection.insert_one(document.view());
-  auto cursor = collection.find({});
+  coll.insert_one(document.view());
+  auto cursor = coll.find({});
 
   for (auto &&doc : cursor)
   {
